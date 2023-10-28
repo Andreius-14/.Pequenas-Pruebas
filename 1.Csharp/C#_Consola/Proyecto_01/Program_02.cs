@@ -1,6 +1,6 @@
 ﻿namespace Proyecto_02
 {
-    public class Segundo
+    public class Program_02
     {
         public static string Valor = "Familia";
 
