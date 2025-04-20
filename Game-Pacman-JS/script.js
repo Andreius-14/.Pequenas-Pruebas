@@ -5,7 +5,7 @@ import { make, insertar } from "../JS-Shared/Shared-DOM.js";
 // └───────────────────────────────────┘
 const board = [
   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-  [1, 5, 5, 5, 5, 5, 5, 1, 5, 5, 5, 5, 5, 1, 5, 5, 5, 5, 5, 5, 1],
+  [1, 9, 5, 5, 5, 5, 5, 1, 5, 5, 5, 5, 5, 1, 5, 5, 5, 5, 5, 9, 1],
   [1, 5, 1, 1, 1, 1, 5, 1, 5, 1, 1, 1, 5, 1, 5, 1, 1, 1, 1, 5, 1],
   [1, 5, 1, 1, 1, 1, 5, 5, 5, 1, 1, 1, 5, 5, 5, 1, 1, 1, 1, 5, 1],
   [1, 5, 5, 5, 5, 5, 5, 1, 5, 5, 5, 5, 5, 1, 5, 5, 5, 5, 5, 5, 1],
@@ -15,12 +15,12 @@ const board = [
   [1, 1, 1, 1, 1, 1, 5, 1, 1, 1, 1, 1, 1, 1, 5, 1, 1, 1, 1, 1, 1],
   [1, 5, 5, 5, 5, 5, 5, 5, 5, 1, 1, 1, 5, 5, 5, 5, 5, 5, 5, 5, 1],
   [1, 5, 1, 1, 1, 1, 5, 1, 1, 1, 1, 1, 1, 1, 5, 1, 1, 1, 1, 5, 1],
-  [1, 5, 5, 5, 5, 5, 5, 0, 5, 5, 5, 5, 5, 0, 5, 5, 5, 5, 5, 5, 1],
+  [1, 9, 5, 5, 5, 5, 5, 0, 5, 5, 7, 5, 5, 0, 5, 5, 5, 5, 5, 9, 1],
   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 ];
 
 const user = {
-  Position: { x: 1, y: 1 },
+  Position: { x: 1, y: 6 },
   Color: "yellow",
 };
 
@@ -47,14 +47,16 @@ const ghosts = [
   },
 ];
 
+let gameOver = false;
 let direccionActual;
 
 let puntaje = 0;
 const cellSize = 35;
-
+const cellFruta = "🍒";
 const fondoColor = "#262626";
 const cellParedColor = "#5555e8";
 const cellPuntoColor = "white";
+const cellColorFruta = "red";
 
 const [width, height] = [board[0].length * cellSize, board.length * cellSize];
 
@@ -63,13 +65,8 @@ const [width, height] = [board[0].length * cellSize, board.length * cellSize];
 // └───────────────────────────────────┘
 const canvas = makeCanvas(height, width, "canvas", true);
 const ctx = canvas.getContext("2d");
-
-// --> Imagina una Lupa
 ctx.scale(cellSize, cellSize);
 
-// ┌───────────────────────────────────┐
-// │         Variables - DOM           │
-// └───────────────────────────────────┘
 const htmlPuntaje = make("h1", `Puntaje: ${puntaje}`, ["puntaje"]);
 insertar(document.body, htmlPuntaje);
 // ┌───────────────────────────────────┐
@@ -83,16 +80,28 @@ function draw() {
   // --> Draw_Grid [Plano Cartesiano]
   board.forEach((row, y) => {
     row.forEach((value, x) => {
-      // [CODIGO]
+      // Draw --> Pared
       if (value === 1) {
         ctx.fillStyle = cellParedColor;
         ctx.fillRect(x, y, 1, 1);
       }
+      // Draw --> Bolitas
       if (value === 5) {
         ctx.fillStyle = cellPuntoColor;
         ctx.beginPath();
         ctx.arc(x + 0.5, y + 0.5, 0.15, 0, Math.PI * 2);
         ctx.fill();
+      }
+      // Draw --> Fruta
+      if (value === 7) {
+        ctx.font = `${0.8}px sans-serif`; // Ajusta el tamaño de la fuente según necesites
+        ctx.fillText(cellFruta, x, y + 0.8);
+      }
+
+      // Draw --> Dead
+      if (value === 9) {
+        ctx.font = `${0.8}px sans-serif`; // Ajusta el tamaño de la fuente según necesites
+        ctx.fillText("💀", x, y + 0.8);
       }
     });
   });
@@ -115,36 +124,62 @@ function draw() {
     ctx.fill();
   });
 }
-
-function verificaColicion(character = user) {
+// ┌───────────────────────────────────┐
+// │    Funciones - Verificacion       │
+// └───────────────────────────────────┘
+function verifica_ColicionPared(character = user) {
   let [x, y] = [character.Position.x, character.Position.y];
   if (board[y][x] === 1) {
     return true;
   }
+}
+
+function verifica_ColicionesItems(character = user) {
+  let [x, y] = [character.Position.x, character.Position.y];
+
   if (board[y][x] === 5 && character === user) {
     puntaje += 10;
     board[y][x] = 0;
   }
+  if (board[y][x] === 7 && character === user) {
+    puntaje += 1000;
+    board[y][x] = 0;
+  }
+
+  if (board[y][x] === 9 && character === user) {
+    puntaje = 0;
+    board[y][x] = 0;
+    anuncioPerdiste();
+  }
 }
 
-function verificaColicionConFantasma() {
+function verifica_ColicionConFantasma() {
   let [userx, usery] = [user.Position.x, user.Position.y];
   let respuesta = ghosts.some((fantasma) => {
     return fantasma.Position.x === userx && fantasma.Position.y === usery;
   });
-
-  if (respuesta) {
-    alert("¡Game Over!");
-  }
+  respuesta ? anuncioPerdiste() : "";
+  return respuesta;
 }
-
-function verificaHayBolitas() {
+function verifica_HayBolasParaComer() {
   const hayBolitas = board.some((row) => row.includes(5));
-  if (!hayBolitas) {
-    alert("🏆 ¡Ganaste!");
-    return true;
-  }
+  hayBolitas ? "" : anuncioGanaste();
+  return hayBolitas;
 }
+
+function anuncioPerdiste() {
+  gameOver = true;
+  alert("¡Game Over!");
+  location.reload();
+}
+function anuncioGanaste() {
+  gameOver = true;
+  alert("🏆 ¡Ganaste!");
+  location.reload();
+}
+// ┌───────────────────────────────────┐
+// │              Fantasmas              │
+// └───────────────────────────────────┘
 function moverFantasmas() {
   ghosts.forEach((fantasma) => {
     const direcciones = [
@@ -178,25 +213,21 @@ document.addEventListener("keydown", (event) => {
   switch (key) {
     case "arrowup":
     case "w":
-      //moverArriba();
       direccionActual = moverArriba;
       break;
 
     case "arrowdown":
     case "s":
-      //moverAbajo();
       direccionActual = moverAbajo;
       break;
 
     case "arrowleft":
     case "a":
-      //moverIzquierda();
       direccionActual = moverIzquierda;
       break;
 
     case "arrowright":
     case "d":
-      //moverDerecha();
       direccionActual = moverDerecha;
       break;
   }
@@ -204,28 +235,32 @@ document.addEventListener("keydown", (event) => {
 
 function moverArriba() {
   user.Position.y--;
-  if (verificaColicion()) {
+  if (verifica_ColicionPared()) {
     user.Position.y++;
   }
 }
 
 function moverAbajo() {
   user.Position.y++;
-  if (verificaColicion()) {
+  if (verifica_ColicionPared()) {
     user.Position.y--;
   }
 }
 function moverIzquierda() {
   user.Position.x--;
-  if (verificaColicion()) {
+  if (verifica_ColicionPared()) {
     user.Position.x++;
   }
 }
 function moverDerecha() {
   user.Position.x++;
-  if (verificaColicion()) {
+  if (verifica_ColicionPared()) {
     user.Position.x--;
   }
+}
+
+function update_puntaje() {
+  htmlPuntaje.innerText = `Puntaje: ${puntaje}`;
 }
 // ┌───────────────────────────────────┐
 // │               Main                │
@@ -236,21 +271,19 @@ let dropCounter = 0;
 function update(time = 0) {
   const deltaTime = time - lastTime;
   lastTime = time;
-
   dropCounter += deltaTime;
 
-  // Html
-  htmlPuntaje.innerText = `Puntaje: ${puntaje}`;
+  if (gameOver) return;
 
-  // Verificacion
-  verificaColicionConFantasma();
-  verificaHayBolitas();
-
-  // Ejecuta por Segundo
+  update_puntaje();
+  // Verificacion - Negativas
+  verifica_ColicionConFantasma();
+  verifica_ColicionesItems();
+  verifica_HayBolasParaComer();
   if (dropCounter > 200) {
-    // Pre
     dropCounter = 0;
 
+    // Ejecuta por Segundo
     if (typeof direccionActual === "function") {
       direccionActual();
     }
